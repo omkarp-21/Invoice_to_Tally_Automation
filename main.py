@@ -7,8 +7,7 @@ def distance(p1, p2):
 
 LiveFeed = False
 cap = cv2.VideoCapture(0)
-PROCESSING_WIDTH = 480
-PROCESSING_HEIGHT = 640
+MAX_DIM = 800
 
 if LiveFeed is True:
     while cap.isOpened():
@@ -23,25 +22,28 @@ if LiveFeed is True:
     cap.release()
 
 else:
-    img = cv2.imread("./test2.jpg")
-    ORIGINAL_HEIGHT, ORIGINAL_WIDTH, _ = img.shape
-    SCALE_WIDTH = ORIGINAL_WIDTH / PROCESSING_WIDTH
-    SCALE_HEIGHT = ORIGINAL_HEIGHT / PROCESSING_HEIGHT
+    orig_img = cv2.imread("test/Document.jpg")
+    orig_h, orig_w = orig_img.shape[:2]
+    scale = MAX_DIM / max(orig_w, orig_h)
 
     # Image Preprocessing
-    img_resized = cv2.resize(img, (PROCESSING_WIDTH, PROCESSING_HEIGHT))
-    img_gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
-    img_blurred = cv2.GaussianBlur(img_gray, (5,5), 0)
+    resized = cv2.resize(orig_img, (int(orig_w * scale), int(orig_h * scale)))
+    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.bilateralFilter(gray, 9, 75, 75)
 
     # Edge Detection
-    img_edged = cv2.Canny(img_blurred, 100, 200)
-    kernel = np.ones((5,5), dtype=np.uint8)
-    img_morphed = cv2.morphologyEx(img_edged, cv2.MORPH_CLOSE, kernel, iterations=2)
+    high_thres, _ = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    low_thres = 0.5 * high_thres
+    edged = cv2.Canny(blurred, low_thres, high_thres)
+
+    # Morphology
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    morphed = cv2.morphologyEx(edged, cv2.MORPH_CLOSE, kernel)
 
     # Contour Detection
-    contours, _ = cv2.findContours(img_morphed, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-    contours = sorted(contours, key=cv2.contourArea, reverse=True)
-    img_contours = img_gray.copy()
+    contours, _ = cv2.findContours(morphed, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+    img_contours = gray.copy()
     cv2.drawContours(img_contours, contours, -1, (0,255,0), 5)
 
     # Contour Selection
@@ -66,18 +68,8 @@ else:
     rect[2] = document_contour[np.argmax(sums)]
     rect[3] = document_contour[np.argmax(diffs)]
 
-    img_corners = img_resized.copy()
-    cv2.circle(img_corners, (int(rect[0][0]), int(rect[0][1])), 2, (0, 0, 255), -1)
-    cv2.circle(img_corners, (int(rect[1][0]), int(rect[1][1])), 2, (0, 0, 255), -1)
-    cv2.circle(img_corners, (int(rect[2][0]), int(rect[2][1])), 2, (0, 0, 255), -1)
-    cv2.circle(img_corners, (int(rect[3][0]), int(rect[3][1])), 2, (0, 0, 255), -1)
-    cv2.imshow("Corners", img_corners)
-
-    rect = np.multiply(rect, np.array([SCALE_WIDTH, SCALE_HEIGHT], dtype=np.float32))
+    rect /= scale
     document_contour = rect
-
-    
-
     
     # Finding Appropriate Document Resolution
     max_width = int( max(distance(rect[0], rect[1]), distance(rect[2], rect[3])) )
@@ -86,19 +78,25 @@ else:
 
     # Warping
     input_map = document_contour
-    output_map = np.float32([[0,0], [max_width, 0], [max_width, max_height], [0, max_height]])
-    matrix = cv2.getPerspectiveTransform(input_map, output_map)
-    img_final = cv2.warpPerspective(img, matrix, (max_width, max_height))
+    output_map = np.float32([[0,0], [max_width-1, 0], [max_width-1, max_height-1], [0, max_height-1]])
+    M = cv2.getPerspectiveTransform(input_map, output_map)
+    img_final = cv2.warpPerspective(orig_img, M, (max_width, max_height))
+
+    # Shaving the curved edges
+    SHAVE_OFFSET = 8 
+    img_final = img_final[
+    SHAVE_OFFSET : max_height - SHAVE_OFFSET, 
+    SHAVE_OFFSET : max_width - SHAVE_OFFSET
+]
 
     print(img_final.shape)
 
-
-    horizontal_stack = np.hstack((img_blurred, img_morphed, img_contours))
-    cv2.imshow("Scanner", horizontal_stack)
+    horizontal_stack = np.hstack((blurred, morphed, img_contours))
+    # cv2.imshow("Scanner", horizontal_stack)
     # cv2.imshow("Original", img)
-    # cv2.imshow("Final", img_final)
-    # if cv2.waitKey(0) & 0xFF == ord('s'):
-    #     cv2.imwrite("./result.jpg", img_final)
-    cv2.waitKey(0)
+    cv2.imshow("Final", img_final)
+    if cv2.waitKey(0) & 0xFF == ord('s'):
+        cv2.imwrite("./result.jpg", img_final)
+    # cv2.waitKey(0)
 
 cv2.destroyAllWindows()
