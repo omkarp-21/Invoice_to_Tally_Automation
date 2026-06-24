@@ -129,7 +129,7 @@ class DocumentProcessor:
 
         return contrast_enhanced
 
-    def process_invoice(self, file_path):
+    def process_file(self, file_path):
         raw_matrix = self.load_file_to_matrix(file_path)
         try:
             # For Unscanned Images
@@ -138,7 +138,7 @@ class DocumentProcessor:
             processed_doc = self.warp_perspective(raw_matrix, corners)
             
         except ValueError:
-            # Found to be scanned -> skip
+            # No Appropriate Contour -> Assume Scanned and skip
             print("📄 Clean scan/PDF detected. Skipping warp step and processing directly...")
             processed_doc = raw_matrix
 
