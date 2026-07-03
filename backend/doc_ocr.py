@@ -30,7 +30,6 @@ class InvoiceOCR:
         if not layout_data:
             return ""
 
-        # sort from top to bottom
         layout_data.sort(key=lambda item: item["box"][1])
 
         lines = []
@@ -53,7 +52,6 @@ class InvoiceOCR:
         if current_line:
             lines.append(current_line)
 
-        # Sort each row from left to right
         reconstructed_text_rows = []
         for line in lines:
             line.sort(key=lambda item: item["box"][0])
