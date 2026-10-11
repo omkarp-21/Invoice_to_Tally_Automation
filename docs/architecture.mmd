@@ -1,0 +1,23 @@
+flowchart TB
+    User(["User<br/>browser"]) --> FE["Frontend<br/>React + Vite + MUI<br/>Home / Review pages"]
+
+    subgraph Project["Invoice_to_Tally_Automation"]
+        FE -->|REST JSON + multipart<br/>127.0.0.1:5000| BE["Backend<br/>Flask app.py<br/>/extract /vendors /ledgers<br/>/create_voucher /refresh_tally"]
+
+        BE --> Cache[("In-memory cache<br/>vendors + ledgers<br/>from sync_ledgers()")]
+
+        BE --> PIPE["Extraction pipeline<br/>main.process_invoice()"]
+        PIPE --> DP["DocumentProcessor<br/>OpenCV warp + CLAHE<br/>pdf2image/Poppler"]
+        DP --> OCR["InvoiceOCR<br/>RapidOCR ONNX"]
+        OCR --> SP["Spatial parser<br/>doc_parser.py<br/>header lanes + amount lanes"]
+        SP --> LLM["LLM structuring<br/>llm_parser.py<br/>Ollama qwen2.5:7b"]
+        SP --> GST["GSTIN extract<br/>regex + MY_COMPANY_GSTIN"]
+
+        BE --> VOU["Voucher builder<br/>voucher.py<br/>validate + build Purchase XML"]
+    end
+
+    PIPE -.-> OLLAMA[("Ollama<br/>external LLM server<br/>qwen2.5:7b")]:::external
+    VOU -->|Tally XML Import/Export<br/>http://localhost:9000| TALLY[("TallyPrime<br/>external, company loaded")]:::external
+    BE -.->|Tally XML Export Collection Ledger| TALLY
+
+    classDef external fill:#f1f5f9,stroke:#64748b,stroke-dasharray: 5 4;

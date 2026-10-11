@@ -5,6 +5,7 @@ __pycache__/
 
 test/
 invoice_data/
+backend/uploads/
 *.xml
 # Logs
 logs
